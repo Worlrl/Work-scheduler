@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>סידור עבודה שבועי</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 10px;
+    }
+    h1, h2, h3 {
+      margin: 0.4em 0;
+    }
+    .section {
+      margin-bottom: 16px;
+      border: 1px solid #ddd;
+      padding: 10px;
+      border-radius: 10px;
+      background: #fafafa;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 5px;
+      font-size: 13px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 0;
+      text-align: center;
+    }
+    th {
+      background: #f3f3f3;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      padding: 4px 6px;
+    }
+    .constraintsTable th, .constraintsTable td {
+      font-size: 12px;
+      padding: 4px 6px;
+    }
+    .constraintsWrapper {
+      max-height: 320px;
+      overflow-y: auto;
+      overflow-x: auto;
+    }
+    .disabled {
+      background: #f5f5f5;
+      color: #999;
+    }
+    #generateBtn {
+      padding: 10px 18px;
+      font-size: 16px;
+      border-radius: 999px;
+      border: 1px solid #888;
+      background: #ffffff;
+      cursor: pointer;
+      margin-right: 8px;
+    }
+    #generateBtn:active {
+      transform: scale(0.97);
+    }
+    #summary ul {
+      list-style-type: none;
+      padding: 0;
+      margin: 0;
+    }
+    #summary li {
+      margin-bottom: 4px;
+    }
+    .warn {
+      color: #c0392b;
+      font-weight: 600;
+    }
+    .ok {
+      color: #27ae60;
+      font-weight: 500;
+    }
+    .note {
+      font-size: 12px;
+      color: #555;
+    }
+    .shiftTitle {
+      font-weight: 600;
+    }
+    .shiftHours {
+      font-size: 11px;
+      color: #555;
+    }
+
+    /* day-off checkbox (binary) */
+    .customCheck {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      padding: 4px;
+      justify-content: center;
+      box-sizing: border-box;
+    }
+    .customCheck input {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .customCheck span.box {
+      width: 22px;
+      height: 22px;
+      border: 2px solid #555;
+      border-radius: 6px;
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 16px;
+      box-sizing: border-box;
+      background: #fff;
+    }
+    .customCheck input:checked + span.box::before {
+      content: "✕";
+    }
+    .dayOffCheck {
+      flex-direction: column;
+      gap: 2px;
+    }
+    .dayOffText {
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    /* tri-state boxes for משמרות */
+    .triBox {
+      width: 26px;
+      height: 26px;
+      border: 2px solid #555;
+      border-radius: 6px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 18px;
+      box-sizing: border-box;
+      background: #fff;
+      margin: 0 auto;
+      cursor: pointer;
+      user-select: none;
+    }
+    .triBox[data-state="1"]::before {
+      content: "✕";
+      color: #e74c3c;
+    }
+    .triBox[data-state="2"]::before {
+      content: "✔";
+      color: #27ae60;
+    }
+
+    details {
+      margin-bottom: 6px;
+      border-radius: 8px;
+      background: #ffffff;
+      border: 1px solid #e0e0e0;
+    }
+    summary {
+      padding: 6px 10px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    summary::-webkit-details-marker {
+      display: none;
+    }
+    summary::before {
+      content: "▸";
+      margin-left: 6px;
+      font-size: 10px;
+    }
+    details[open] summary::before {
+      content: "▾";
+    }
+    .empType {
+      font-weight: 400;
+      font-size: 12px;
+      color: #777;
+    }
+    .scheduleContainer {
+      overflow-x: auto;
+    }
+
+    /* תאי סידור */
+    td[data-di] {
+      position: relative;
+      height: 32px;
+    }
+
+    /* כוכבית על תא שנוגד אילוץ (חסום) */
+    td.hardConflict::after {
+      content: "★";
+      position: absolute;
+      top: 2px;
+      right: 3px;
+      font-size: 10px;
+      color: #c0392b;
+    }
+
+    /* שיפור ה-UI של הדרופדאון בסידור */
+    .cellSelect {
+      width: 100%;
+      height: 100%;
+      box-sizing: border-box;
+      border: none;
+      background: transparent;
+      font-size: 13px;
+      font-weight: 600;
+      text-align: center;
+      padding: 6px 2px;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+      color: #000;
+      cursor: pointer;
+    }
+    .cellSelect:focus {
+      outline: 2px solid rgba(0,0,0,0.2);
+      outline-offset: -2px;
+    }
+  </style>
+</head>
+<body>
+  <h1>סידור עבודה שבועי</h1>
+
+  <div class="section">
+    <h2>אילוצים</h2>
+    <p class="note">
+      לכל משבצת משמרת יש 3 מצבים:
+      ריק = אין העדפה · ✕ אדום = אי אפשר לעבוד · ✔ ירוק = העדפה לעבוד במשבצת הזאת.<br>
+      לחיצה מחליפה מצב: ריק → ✕ → ✔ → ריק.<br>
+      לכל יום יש גם "יום חופש" (איקס קטן) שמבטל את כל המשמרות באותו יום עבור העובד.<br>
+      שישי: בוקר + חצות בלבד. שבת: אמצע + חצות בלבד.
+    </p>
+    <div class="constraintsWrapper" id="constraintsContainer"></div>
+  </div>
+
+  <div class="section">
+    <h2>יצירת סידור</h2>
+    <p class="note">
+      בחר תאריך תחילת שבוע (יום ראשון), עדכן אילוצים ולחץ על הכפתור.<br>
+      האלגוריתם:
+      <br>• אוראל, שיר, מיכאל – מנסה לקרב ל־5 משמרות כל אחד, כולל שלב איזון.
+      <br>• משמרת חצות – נותן עדיפות לפרילנסרים.
+      <br>• אם כולם מסומנים כאסורים – הסידור עדיין ישבץ מישהו (בעדיפות לשכיר), כדי שלא יישארו חורים.
+      <br>• לא יותר ממשמרת אחת ביום לעובד.
+      <br>• אין חצות ואז בוקר ביום שאחריו.
+      <br>אחרי יצירת הסידור ניתן לערוך ידנית כל תא בטבלה באמצעות רשימה נפתחת (כולל בחירה ב־"-" אם לא רוצים לשים אף אחד).
+      <br>אם עובד שובץ במשבצת שנסומנה כחסומה עבורו, תופיע כוכבית קטנה בפינה של התא.
+    </p>
+    <label>
+      תאריך תחילת שבוע (ראשון):
+      <input type="date" id="weekStart">
+    </label>
+    <br><br>
+    <button id="generateBtn">צור סידור לשבוע</button>
+  </div>
+
+  <div class="section">
+    <h2>סידור שבועי</h2>
+    <div class="scheduleContainer">
+      <table id="scheduleTable"></table>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>סיכום משמרות</h2>
+    <div id="summary"></div>
+  </div>
+
+<script>
+  const employees = [
+    { name: "אוראל", type: "fixed" },
+    { name: "שיר", type: "fixed" },
+    { name: "מיכאל", type: "fixed" },
+    { name: "דניאל", type: "freelance" },
+    { name: "מירי", type: "freelance" },
+    { name: "ניבה", type: "freelance" },
+    { name: "נטע", type: "freelance" }
+  ];
+
+  const employeeColors = {
+    "אוראל": "#3498db",
+    "שיר": "#e74c3c",
+    "מיכאל": "#f1c40f",
+    "דניאל": "#ff66cc",
+    "מירי": "#e67e22",
+    "ניבה": "#95a5a6",
+    "נטע": "#9b59b6"
+  };
+
+  const days = [
+    { index: 0, name: "ראשון" },
+    { index: 1, name: "שני" },
+    { index: 2, name: "שלישי" },
+    { index: 3, name: "רביעי" },
+    { index: 4, name: "חמישי" },
+    { index: 5, name: "שישי" },
+    { index: 6, name: "שבת" }
+  ];
+
+  const shifts = [
+    { index: 0, name: "בוקר",  label: "בוקר",  hours: "05:30–13:00" },
+    { index: 1, name: "אמצע",  label: "אמצע",  hours: "13:00–21:30" },
+    { index: 2, name: "חצות", label: "חצות", hours: "21:30–24:00" }
+  ];
+
+  let globalSchedule = null;
+  let lastPrefs = null;
+
+  function isShiftActive(dayIndex, shiftName) {
+    if (dayIndex === 5 && shiftName === "אמצע") return false;
+    if (dayIndex === 6 && shiftName === "בוקר") return false;
+    return true;
+  }
+
+  function buildConstraintsUI() {
+    const container = document.getElementById("constraintsContainer");
+    let html = "";
+
+    employees.forEach((emp, ei) => {
+      const typeLabel = emp.type === "fixed" ? "קבוע · יעד 5 משמרות" : "פרילנס";
+      html += `<details${ei === 0 ? " open" : ""}><summary>${emp.name} <span class="empType">(${typeLabel})</span></summary>`;
+      html += '<table class="constraintsTable"><thead><tr><th>יום</th><th>יום חופש</th>';
+      shifts.forEach(s => {
+        html += "<th>" + s.label + "</th>";
+      });
+      html += "</tr></thead><tbody>";
+
+      const isFreelance = emp.type === "freelance";
+
+      days.forEach(d => {
+        html += "<tr><td>" + d.name + "</td>";
+        const dayOffId = "dayoff_e" + ei + "_d" + d.index;
+        html += `<td><label class="customCheck dayOffCheck"><input type="checkbox" id="${dayOffId}"><span class="box"></span><span class="dayOffText">יום חופש</span></label></td>`;
+
+        shifts.forEach(s => {
+          if (!isShiftActive(d.index, s.name)) {
+            html += '<td class="disabled">-</td>';
+          } else {
+            const id = "cell_e" + ei + "_d" + d.index + "_s" + s.index;
+            const initialState = isFreelance ? 1 : 0;
+            html += `<td><div class="triBox" id="${id}" data-state="${initialState}"></div></td>`;
+          }
+        });
+        html += "</tr>";
+      });
+
+      html += "</tbody></table></details>";
+    });
+
+    container.innerHTML = html;
+
+    container.querySelectorAll(".triBox").forEach(box => {
+      box.addEventListener("click", () => {
+        let state = parseInt(box.dataset.state || "0", 10);
+        state = (state + 1) % 3;
+        box.dataset.state = String(state);
+      });
+    });
+  }
+
+  function parseDateInput(value) {
+    if (!value) return null;
+    const [y, m, d] = value.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  function getWeekDates() {
+    const input = document.getElementById("weekStart");
+    let start;
+    if (input && input.value) {
+      start = parseDateInput(input.value);
+    } else {
+      const today = new Date();
+      const diff = today.getDay();
+      start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - diff);
+    }
+    const dates = [];
+    for (let i = 0; i < days.length; i++) {
+      const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+      const day = String(d.getDate()).padStart(2, "0");
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const year = d.getFullYear();
+      dates.push(day + "/" + month + "/" + year);
+    }
+    return dates;
+  }
+
+  function buildEmptyScheduleTable() {
+    const table = document.getElementById("scheduleTable");
+    const dates = getWeekDates();
+
+    let html = "<thead>";
+    html += "<tr><th>משמרת</th>";
+    days.forEach(d => {
+      html += "<th>" + d.name + "</th>";
+    });
+    html += "</tr>";
+    html += "<tr><th>תאריך</th>";
+    dates.forEach(date => {
+      html += "<th>" + date + "</th>";
+    });
+    html += "</tr>";
+    html += "</thead><tbody>";
+
+    shifts.forEach(s => {
+      html += `<tr><td style="padding:4px 6px;"><span class="shiftTitle">${s.label}</span><br><span class="shiftHours">${s.hours}</span></td>`;
+      days.forEach(d => {
+        if (!isShiftActive(d.index, s.name)) {
+          html += '<td class="disabled">-</td>';
+        } else {
+          html += "<td>-</td>";
+        }
+      });
+      html += "</tr>";
+    });
+
+    html += "</tbody>";
+    table.innerHTML = html;
+    globalSchedule = null;
+    lastPrefs = null;
+  }
+
+  function getPreferenceMatrix() {
+    const prefs = [];
+    for (let ei = 0; ei < employees.length; ei++) {
+      prefs[ei] = [];
+      for (let di = 0; di < days.length; di++) {
+        prefs[ei][di] = [];
+        const dayOffId = "dayoff_e" + ei + "_d" + di;
+        const dayOffCb = document.getElementById(dayOffId);
+        const isDayOff = dayOffCb ? dayOffCb.checked : false;
+
+        for (let si = 0; si < shifts.length; si++) {
+          const shiftName = shifts[si].name;
+          if (!isShiftActive(di, shiftName)) {
+            prefs[ei][di][si] = -1;
+          } else if (isDayOff) {
+            prefs[ei][di][si] = -1;
+          } else {
+            const id = "cell_e" + ei + "_d" + di + "_s" + si;
+            const box = document.getElementById(id);
+            const state = box ? parseInt(box.dataset.state || "0", 10) : 0;
+            if (state === 1)      prefs[ei][di][si] = -1;
+            else if (state === 2) prefs[ei][di][si] =  1;
+            else                  prefs[ei][di][si] =  0;
+          }
+        }
+      }
+    }
+    return prefs;
+  }
+
+  function employeeAlreadyThatDay(ei, di, schedule) {
+    for (let si = 0; si < shifts.length; si++) {
+      if (schedule[di][si] === ei) return true;
+    }
+    return false;
+  }
+
+  function isMorningAfterNight(di, si, ei, schedule) {
+    if (si !== 0) return false;
+    if (di === 0) return false;
+    const prevDay = di - 1;
+    const nightIndex = 2;
+    if (!isShiftActive(prevDay, shifts[nightIndex].name)) return false;
+    return schedule[prevDay][nightIndex] === ei;
+  }
+
+  function isNightBeforeMorning(di, si, ei, schedule) {
+    if (si !== 2) return false;
+    if (di === days.length - 1) return false;
+    const nextDay = di + 1;
+    const morningIndex = 0;
+    if (!isShiftActive(nextDay, shifts[morningIndex].name)) return false;
+    return schedule[nextDay][morningIndex] === ei;
+  }
+
+  function pickRandomMin(arr, assignedCount) {
+    if (!arr.length) return null;
+    let min = assignedCount[arr[0]];
+    arr.forEach(ei => {
+      if (assignedCount[ei] < min) min = assignedCount[ei];
+    });
+    const candidates = arr.filter(ei => assignedCount[ei] === min);
+    const idx = Math.floor(Math.random() * candidates.length);
+    return candidates[idx];
+  }
+
+  function canAssignFixedToShift(ei, di, si, schedule) {
+    for (let sj = 0; sj < shifts.length; sj++) {
+      if (sj !== si && schedule[di][sj] === ei) return false;
+    }
+    if (isMorningAfterNight(di, si, ei, schedule)) return false;
+    if (isNightBeforeMorning(di, si, ei, schedule)) return false;
+    return true;
+  }
+
+  function balanceFixedCounts(schedule, assignedCount, prefs) {
+    const REQUIRED = 5;
+
+    for (let ei = 0; ei < employees.length; ei++) {
+      if (employees[ei].type !== "fixed") continue;
+
+      let safetyCounter = 0;
+      while (assignedCount[ei] < REQUIRED && safetyCounter < 100) {
+        safetyCounter++;
+
+        let improved = false;
+
+        for (const prefLevel of [1, 0, -1]) {
+          const candidates = [];
+
+          for (let di = 0; di < days.length; di++) {
+            for (let si = 0; si < shifts.length; si++) {
+              if (!isShiftActive(di, shifts[si].name)) continue;
+
+              const current = schedule[di][si];
+              if (current === ei) continue;
+
+              if (prefs[ei][di][si] !== prefLevel) continue;
+
+              if (
+                current !== null &&
+                employees[current].type === "fixed" &&
+                assignedCount[current] <= REQUIRED
+              ) {
+                continue;
+              }
+
+              if (!canAssignFixedToShift(ei, di, si, schedule)) continue;
+
+              candidates.push({ di, si, current });
+            }
+          }
+
+          if (candidates.length > 0) {
+            const choice = candidates[Math.floor(Math.random() * candidates.length)];
+            const { di, si, current } = choice;
+
+            schedule[di][si] = ei;
+            assignedCount[ei]++;
+
+            if (current !== null) {
+              assignedCount[current]--;
+            }
+
+            improved = true;
+            break;
+          }
+        }
+
+        if (!improved) {
+          break;
+        }
+      }
+    }
+  }
+
+  function generateSchedule() {
+    const prefs = getPreferenceMatrix();
+    lastPrefs = prefs;
+
+    const schedule = [];
+    for (let di = 0; di < days.length; di++) {
+      schedule[di] = [null, null, null];
+    }
+    const assignedCount = new Array(employees.length).fill(0);
+
+    for (let di = 0; di < days.length; di++) {
+      for (let si = 0; si < shifts.length; si++) {
+        const shiftName = shifts[si].name;
+        if (!isShiftActive(di, shiftName)) continue;
+
+        const fixedPreferred = [];
+        const fixedNeutral   = [];
+        const fixedBlocked   = [];
+        const freelPreferred = [];
+        const freelNeutral   = [];
+        const freelBlocked   = [];
+
+        for (let ei = 0; ei < employees.length; ei++) {
+          const pref = prefs[ei][di][si];
+
+          if (employeeAlreadyThatDay(ei, di, schedule)) continue;
+          if (isMorningAfterNight(di, si, ei, schedule)) continue;
+          if (isNightBeforeMorning(di, si, ei, schedule)) continue;
+
+          const isFixed = employees[ei].type === "fixed";
+          if (pref === 1) {
+            if (isFixed) fixedPreferred.push(ei);
+            else freelPreferred.push(ei);
+          } else if (pref === 0) {
+            if (isFixed) fixedNeutral.push(ei);
+            else freelNeutral.push(ei);
+          } else {
+            if (isFixed) fixedBlocked.push(ei);
+            else freelBlocked.push(ei);
+          }
+        }
+
+        const isNight = shiftName === "חצות";
+        let chosen = null;
+
+        if (isNight) {
+          chosen = pickRandomMin(freelPreferred, assignedCount)
+                ?? pickRandomMin(freelNeutral,   assignedCount)
+                ?? pickRandomMin(fixedPreferred, assignedCount)
+                ?? pickRandomMin(fixedNeutral,   assignedCount)
+                ?? pickRandomMin(freelBlocked,   assignedCount)
+                ?? pickRandomMin(fixedBlocked,   assignedCount);
+        } else {
+          chosen = pickRandomMin(fixedPreferred, assignedCount)
+                ?? pickRandomMin(fixedNeutral,   assignedCount)
+                ?? pickRandomMin(freelPreferred, assignedCount)
+                ?? pickRandomMin(freelNeutral,   assignedCount)
+                ?? pickRandomMin(fixedBlocked,   assignedCount)
+                ?? pickRandomMin(freelBlocked,   assignedCount);
+        }
+
+        if (chosen !== null) {
+          schedule[di][si] = chosen;
+          assignedCount[chosen]++;
+        }
+      }
+    }
+
+    balanceFixedCounts(schedule, assignedCount, prefs);
+
+    globalSchedule = schedule;
+    renderSchedule(schedule);
+    renderSummary(assignedCount);
+  }
+
+  function renderSchedule(schedule) {
+    const table = document.getElementById("scheduleTable");
+    const dates = getWeekDates();
+
+    let html = "<thead>";
+    html += "<tr><th>משמרת</th>";
+    days.forEach(d => {
+      html += "<th>" + d.name + "</th>";
+    });
+    html += "</tr>";
+    html += "<tr><th>תאריך</th>";
+    dates.forEach(date => {
+      html += "<th>" + date + "</th>";
+    });
+    html += "</tr>";
+    html += "</thead><tbody>";
+
+    shifts.forEach((s, si) => {
+      html += `<tr><td style="padding:4px 6px;"><span class="shiftTitle">${s.label}</span><br><span class="shiftHours">${s.hours}</span></td>`;
+      days.forEach((d, di) => {
+        if (!isShiftActive(d.index, s.name)) {
+          html += '<td class="disabled">-</td>';
+        } else {
+          const ei = schedule[di][si];
+          const selectedValue = ei === null ? "-" : String(ei);
+          html += `<td data-di="${di}" data-si="${si}">`;
+          html += `<select class="cellSelect" data-di="${di}" data-si="${si}">`;
+          html += `<option value="-">-</option>`;
+          employees.forEach((emp, idx) => {
+            const isSelected = selectedValue === String(idx) ? ' selected' : '';
+            html += `<option value="${idx}"${isSelected}>${emp.name}</option>`;
+          });
+          html += `</select>`;
+          html += `</td>`;
+        }
+      });
+      html += "</tr>";
+    });
+
+    html += "</tbody>";
+    table.innerHTML = html;
+
+    applyColorsFromSchedule();
+
+    table.querySelectorAll(".cellSelect").forEach(sel => {
+      sel.addEventListener("change", onManualCellChange);
+    });
+  }
+
+  function onManualCellChange(e) {
+    const select = e.target;
+    const di = parseInt(select.dataset.di, 10);
+    const si = parseInt(select.dataset.si, 10);
+    const value = select.value;
+
+    if (!globalSchedule) {
+      globalSchedule = [];
+      for (let d = 0; d < days.length; d++) {
+        globalSchedule[d] = [null, null, null];
+      }
+    }
+
+    if (value === "-") {
+      globalSchedule[di][si] = null;
+    } else {
+      const ei = parseInt(value, 10);
+      globalSchedule[di][si] = ei;
+    }
+
+    lastPrefs = getPreferenceMatrix();
+
+    const td = select.closest("td");
+    updateCellAppearance(td, globalSchedule[di][si]);
+
+    const counts = new Array(employees.length).fill(0);
+    for (let d = 0; d < days.length; d++) {
+      for (let s = 0; s < shifts.length; s++) {
+        const ei2 = globalSchedule[d]?.[s];
+        if (Number.isInteger(ei2) && ei2 >= 0 && ei2 < employees.length) {
+          counts[ei2]++;
+        }
+      }
+    }
+    renderSummary(counts);
+  }
+
+  function applyCellColor(td, ei) {
+    if (!td) return;
+    if (ei === null || ei === undefined || ei === "-") {
+      td.style.background = "";
+      return;
+    }
+    const emp = employees[ei];
+    const color = employeeColors[emp.name] || "#ffffff";
+    td.style.background = color;
+  }
+
+  function updateCellAppearance(td, ei) {
+    if (!td) return;
+    applyCellColor(td, ei);
+    td.classList.remove("hardConflict");
+
+    if (ei === null || ei === undefined || ei === "-") return;
+    if (!lastPrefs) return;
+
+    const di = parseInt(td.dataset.di, 10);
+    const si = parseInt(td.dataset.si, 10);
+    const pref = lastPrefs[ei]?.[di]?.[si];
+
+    if (pref === -1) {
+      td.classList.add("hardConflict");
+    }
+  }
+
+  function applyColorsFromSchedule() {
+    if (!globalSchedule) return;
+    const table = document.getElementById("scheduleTable");
+    table.querySelectorAll("td[data-di]").forEach(td => {
+      const di = parseInt(td.dataset.di, 10);
+      const si = parseInt(td.dataset.si, 10);
+      const ei = globalSchedule[di][si];
+      updateCellAppearance(td, ei);
+    });
+  }
+
+  function renderSummary(assignedCount) {
+    const div = document.getElementById("summary");
+    let html = "<ul>";
+    let impossibleNote = "";
+
+    employees.forEach((emp, ei) => {
+      const count = assignedCount[ei];
+      if (emp.type === "fixed") {
+        const cls = (count === 5) ? "ok" : "warn";
+        const msg = (count === 5) ? "בדיוק 5 משמרות" : "לא הצלחנו להגיע ל־5 משמרות לפי האילוצים/השינויים";
+        if (count !== 5) {
+          impossibleNote = "שימו לב: יש קבועים שלא הגיעו ל־5 משמרות. זה יכול לנבוע מהאילוצים שסימנת, או מעריכה ידנית של הטבלה.";
+        }
+        html += `<li class="${cls}">${emp.name}: ${count} (${msg})</li>`;
+      } else {
+        html += `<li>${emp.name}: ${count} משמרות (פרילנס)</li>`;
+      }
+    });
+    html += "</ul>";
+    if (impossibleNote) {
+      html += `<p class="note">${impossibleNote}</p>`;
+    }
+    div.innerHTML = html;
+  }
+
+  window.onload = function() {
+    const input = document.getElementById("weekStart");
+    if (input) {
+      const today = new Date();
+      const diff = today.getDay();
+      const sunday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - diff);
+      const y = sunday.getFullYear();
+      const m = String(sunday.getMonth() + 1).padStart(2, "0");
+      const d = String(sunday.getDate()).padStart(2, "0");
+      input.value = `${y}-${m}-${d}`;
+    }
+
+    buildConstraintsUI();
+    buildEmptyScheduleTable();
+
+    document.getElementById("generateBtn").addEventListener("click", generateSchedule);
+    if (input) {
+      input.addEventListener("change", buildEmptyScheduleTable);
+    }
+  };
+</script>
+</body>
+</html>
